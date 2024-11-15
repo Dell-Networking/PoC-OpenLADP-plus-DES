@@ -9,10 +9,6 @@ Built and maintained by [Ben Goldstone](https://github.com/benjamingoldstone/) a
 
 ------------------
 
-This is the template repo for Dell Enterprise SONiC Proof-of-Concept repos. Adopt this repo as you see fit to meet your needs as you build out a reference PoC repo.
-
-The formatting here should be basically maintained, with the source code in the src folder and an appropriate LICENCE and CONTRIBUTING guide available inline in the README or as separate files within the repo.
-
 ## Contents
 
 - [Description and Objective](#-description-and-objective)
@@ -22,12 +18,41 @@ The formatting here should be basically maintained, with the source code in the 
 
 ## 🚀 Description and Objective
 
-Use this space to provide clarity around what the objective of the PoC is and what the end result of successfully running through the exercise should look like.
+This repository's main aim is to simplify testing of LDAP authentication in Dell Enterprise SONIC (DES) by providing ansible playbooks to setup  Linux and Active Directory (AD) like structures using OpenLDAP (mostly for licensing and ease of setup reasons). 
+
+In both cases, the easiest approach was taken: 
+
+- no groups to be stored in LDAP
+- no sudo information to be stored in LDAP
+- no group named after system groups (i.e. sudoers)
+
+Therefore following users and groups/roles will be created:
+
+### Users:
+
+- admin
+- testadmin
+- testnetadmin
+- testsecadmin
+- testoperator
+
+(user admin is identical to buil-in user ``admin``)
+
+### Groups/roles
+
+- sonic-admins 
+- sonic-netadmins
+- sonic-secadmins
+- sonic-operators
+
+User and group IDs are created with DES built-in limits in mind (see ``/etc/adduser.conf`` for details) - so LDAP users and groups/roles (current or future) don't overlap with built-in ones.
 
 
 ## 📋 Requirements
 
-Be sure to list requirements for building and utilizing the example PoC code here. This can include details such as languages / libraries / tools that must be used as well as what platforms the code has been validated to run on (Linux, MacOS, Windows, etc.) Additional details may be added in the README under the src folder.
+- Ubuntu 22.04 server or a virtual machine
+- ansible 2.10+
+- an instance of DES
 
 
 ## 👏 How to Contribute

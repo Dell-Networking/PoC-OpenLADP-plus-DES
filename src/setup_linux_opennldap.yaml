@@ -1,0 +1,208 @@
+---
+- name: Set up and configure OpenLDAP with AD-like structure
+  hosts: ldap_servers
+  become: yes
+  vars:
+    domain: "example.com"
+    password: "Password123!"
+    ldap_base: "dc=example,dc=com"
+    ldap_users: "ou=People"
+    ldap_groups: "ou=Groups"
+    uid_start: 60100
+    gid_start: 60000
+    users:
+      - { cn: "admin", sn: "admin", uid: "admin" }
+      - { cn: "testadmin", sn: "testadmin", uid: "testadmin" }
+      - { cn: "testnetadmin", sn: "testnetadmin", uid: "testnetadmin" }
+      - { cn: "testsecadmin", sn: "testsecadmin", uid: "testsecadmin" }
+      - { cn: "testoperator", sn: "testoperator", uid: "testoperator" }
+    special_groups:
+      - { cn: "sonic-admins",  members: ["admin", "testadmin"] }
+      - { cn: "sonic-netadmins",  members: ["testnetadmin"] }
+      - { cn: "sonic-secadmins",  members: ["testsecadmin"] }
+      - { cn: "sonic-operators",  members: ["testoperator"] }
+
+  tasks:
+    - name: Install debconf-utils
+      apt:
+        name: debconf-utils
+        state: present
+        update_cache: yes
+
+    - name: Pre-seed slapd configuration before installation
+      debconf:
+        name: slapd
+        question: "{{ item.question }}"
+        value: "{{ item.value }}"
+        vtype: "{{ item.vtype }}"
+      loop:
+        - { question: 'slapd/root_password', value: '{{ password }}', vtype: 'password' }
+        - { question: 'slapd/root_password_again', value: '{{ password }}', vtype: 'password' }
+        - { question: 'slapd/domain', value: '{{ domain }}', vtype: 'string' }
+        - { question: 'shared/organization', value: '{{ domain }}', vtype: 'string' }
+        - { question: 'slapd/password1', value: '{{ password }}', vtype: 'password' }
+        - { question: 'slapd/password2', value: '{{ password }}', vtype: 'password' }
+        - { question: 'slapd/backend', value: 'MDB', vtype: 'string' }
+        - { question: 'slapd/purge_database', value: 'true', vtype: 'boolean' }
+        - { question: 'slapd/move_old_database', value: 'true', vtype: 'boolean' }
+        - { question: 'slapd/allow_ldap_v2', value: 'false', vtype: 'boolean' }
+        - { question: 'slapd/no_configuration', value: 'false', vtype: 'boolean' }
+
+    - name: Install LDAP packages
+      apt:
+        name: 
+          - slapd
+          - ldap-utils
+        state: present
+        update_cache: yes
+
+    - name: Ensure slapd is started
+      systemd:
+        name: slapd
+        state: started
+        enabled: yes
+
+    - name: Wait for LDAP to be ready
+      wait_for:
+        port: 389
+        delay: 10
+
+    - name: Verify LDAP root DSE
+      command: ldapsearch -Y EXTERNAL -H ldapi:/// -b "" -s base
+      register: ldap_rootdse
+      changed_when: false
+
+    - name: Display LDAP root DSE
+      debug:
+        var: ldap_rootdse.stdout_lines
+
+    - name: Verify base DN
+      command: ldapsearch -x -D cn=admin,{{ ldap_base }} -w {{ password }} -b {{ ldap_base }}
+      register: ldap_base_dn
+      changed_when: false
+
+    - name: Display base DN results
+      debug:
+        var: ldap_base_dn.stdout_lines
+
+    - name: Stop slapd service
+      systemd:
+        name: slapd
+        state: stopped
+
+    - name: Backup slapd.d directory
+      copy:
+        src: /etc/ldap/slapd.d
+        dest: /etc/ldap/slapd.d.bak
+        remote_src: yes
+
+    - name: Start slapd service
+      systemd:
+        name: slapd
+        state: started
+
+    - name: Wait for LDAP to be ready after restart
+      wait_for:
+        port: 389
+        delay: 10
+
+    - name: Create base structure LDIF
+      copy:
+        content: |
+          dn: {{ldap_users}},{{ ldap_base }}
+          objectClass: organizationalUnit
+          ou: {{ ldap_users | replace('ou=', '') }}
+
+          dn: ou=Groups,{{ ldap_base }}
+          objectClass: organizationalUnit
+          ou: {{ ldap_groups | replace('ou=', '') }}
+        dest: /tmp/base_structure.ldif
+
+    - name: Add base structure
+      command: ldapadd -x -D cn=admin,{{ ldap_base }} -w {{ password }} -f /tmp/base_structure.ldif
+
+    - name: Create users LDIF (create file if it does not exists)
+      tags: create_users_ldif
+      copy:
+        dest: /tmp/users.ldif
+        content: |
+          {% set group_gids = {} %}
+          {% for group in special_groups %}
+          {% set _ = group_gids.update({group.cn: gid_start + loop.index0}) %}
+          {% endfor %}
+          {% for user in users %}
+          dn: cn={{ user.cn }},{{ ldap_users }},{{ ldap_base }}
+          objectClass: inetOrgPerson
+          objectClass: posixAccount
+          objectClass: shadowAccount
+          uid: {{ user.uid }}
+          cn: {{ user.cn }}
+          sn: {{ user.sn }}
+          {% if user.uid == "admin" %}
+          uidNumber: 1000
+          gidNumber: {{ gid_start  }}
+          homeDirectory: /home/{{ user.uid }}
+          {% else %}
+          uidNumber: {{ uid_start + loop.index0 - 1 }}
+          {% set user_gid = gid_start %}
+          {% for group in special_groups %}
+          {% if user.uid in group.members %}
+          {% set user_gid = group_gids[group.cn] %}
+          gidNumber: {{ user_gid }}
+          {% endif %}
+          {% endfor %}
+          homeDirectory: /home/{{ user.uid }}
+          {% endif %}
+          userPassword: {{ lookup('pipe', 'slappasswd -h {SSHA} -s ' + password) }}
+    
+          {% endfor %}
+        mode: '0644'
+    
+    - name: Add users
+      tags: add_users
+      command: ldapadd -x -D cn=admin,{{ ldap_base }} -w {{ password }} -f /tmp/users.ldif
+
+    - name: Create groups LDIF
+      tags: create_groups_ldif
+      copy:
+        dest: /tmp/groups.ldif
+        content: |
+          {% for group in special_groups %}
+          dn: cn={{ group.cn }},{{ ldap_groups }},{{ ldap_base }}
+          objectClass: posixGroup
+          cn: {{ group.cn }}
+          gidNumber: {{ gid_start + loop.index0  }}
+          {% for member in group.members %}
+          memberUid: cn={{ member }},{{ ldap_users }},{{ ldap_base }}
+          {% endfor %}
+     
+          {% endfor %}
+        mode: '0644'
+
+    - name: Add groups
+      command: ldapadd -x -D cn=admin,{{ ldap_base }} -w {{ password }} -f /tmp/groups.ldif
+    
+    - name: Remove temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/base_structure.ldif
+        - /tmp/groups.ldif
+        - /tmp/users.ldif
+
+    - name: Verify final LDAP content
+      command: ldapsearch -x -D cn=admin,{{ ldap_base }} -w {{ password }} -b {{ ldap_base }}
+      register: final_ldap_content
+
+    - name: Display final LDAP content
+      debug:
+        var: final_ldap_content.stdout_lines
+
+    - name: Verify group membership
+      command: ldapsearch -x -D cn=admin,{{ ldap_base }} -w {{ password }} -b {{ldap_groups}},{{ ldap_base }} 
+      register: group_verify
+
+    - name: Display group verification result
+      debug:
+        var: group_verify.stdout_lines

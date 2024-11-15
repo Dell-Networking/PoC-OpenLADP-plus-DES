@@ -1,0 +1,14 @@
+aaa authentication login default group ldap
+aaa authentication failthrough enable
+aaa name-service group group ldap
+aaa name-service passwd group ldap
+ldap-server base ou=People,dc=example,dc=com
+ldap-server binddn cn=admin,dc=example,dc=com
+ldap-server nss-base-group ou=Groups,dc=example,dc=com
+ldap-server bindpw <redacted> encrypted
+ldap-server host 192.168.50.1
+ldap-server map default-attribute-value loginShell to /usr/bin/sonic-launch-shell
+ldap-server map remote-groups-override-to-sonic-roles sonic-admins to admin
+ldap-server map remote-groups-override-to-sonic-roles sonic-netadmins to netadmin
+ldap-server map remote-groups-override-to-sonic-roles sonic-secadmins to secadmin
+ldap-server map remote-groups-override-to-sonic-roles sonic-operators to operator
