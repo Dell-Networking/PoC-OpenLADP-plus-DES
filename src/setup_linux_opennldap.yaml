@@ -4,7 +4,7 @@
   become: yes
   vars:
     domain: "example.com"
-    password: "Password123!"
+    password: ""
     ldap_base: "dc=example,dc=com"
     ldap_users: "ou=People"
     ldap_groups: "ou=Groups"
