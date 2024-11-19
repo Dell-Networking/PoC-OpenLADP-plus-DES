@@ -84,15 +84,17 @@ For DES to succesfuly authenticate against Active Directory LDAP backend, one ne
 
 - uiDNumber (User ID number)
 - gidNumber (Group ID number) // this needs to match the gidNumber below
-- homeDirectory (Home directory)
+- homeDirectory (Home directory in /home/<user> format)
 
 #### Group
 
-- - gidNumber (Group ID number)
+- gidNumber (Group ID number)
 
 If you use an actual Active Directory, then these attributes are not populated by default.
 
 ### Attribute mapping
+
+Following attributes need to be mapped on DES side in order to LDAP authentication work:
 
 
 
@@ -117,7 +119,7 @@ sAMAccountName: admin
 distinguishedName: cn=admin,ou=People,dc=example,dc=com
 uidNumber: 1000
 gidNumber: 60000
-memberOf: cn=sonic-admins,ou=Groups,dc=example,dc=com
+**bold**memberOf: cn=sonic-admins,ou=Groups,dc=example,dc=com**bold**
 
 dn: cn=testadmin,ou=People,dc=example,dc=com
 objectClass: top
@@ -132,7 +134,7 @@ distinguishedName: cn=testadmin,ou=People,dc=example,dc=com
 uidNumber: 60100
 gidNumber: 60000
 homeDirectory: /home/testadmin
-memberOf: cn=sonic-admins,ou=Groups,dc=example,dc=com
+**bold**memberOf: cn=sonic-admins,ou=Groups,dc=example,dc=com**bold**
 ```
 
 and
@@ -147,8 +149,8 @@ cn: sonic-admins
 sAMAccountName: sonic-admins
 groupType: -2147483646
 gidNumber: 60000
-member: cn=admin,ou=People,dc=example,dc=com
-member: cn=testadmin,ou=People,dc=example,dc=com
+**bold**member: cn=admin,ou=People,dc=example,dc=com**bold**
+**bold**member: cn=testadmin,ou=People,dc=example,dc=com**bold**
 ```
 
 versus
@@ -160,8 +162,8 @@ dn: cn=sonic-admins,ou=Groups,dc=example,dc=com
 objectClass: posixGroup
 cn: sonic-admins
 gidNumber: 60000
-memberUid: cn=admin,ou=People,dc=example,dc=com
-memberUid: cn=testadmin,ou=People,dc=example,dc=com
+**bold**memberUid: cn=admin,ou=People,dc=example,dc=com**bold**
+**bold**memberUid: cn=testadmin,ou=People,dc=example,dc=com**bold**
 ```
 
 and
