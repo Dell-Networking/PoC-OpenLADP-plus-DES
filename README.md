@@ -56,8 +56,8 @@ This setup is intended for Proof of Concept (PoC) and testing environments only.
    ```
 
 2. Update the password in your chosen playbook:
-   - For Linux: Edit `src/setup_linux_opennldap.yaml`
-   - For Active Directory: Edit `src/setup_ad_like_openldap.yaml`
+   - For Linux: Edit [src/setup_linux_opennldap.yaml](src/setup_linux_opennldap.yaml)
+   - For Active Directory: Edit [src/setup_linux_opennldap.yaml](src/setup_ad_like_openldap.yaml)
 
 3. Edit the `src/inventory` file to specify your LDAP host.
 
