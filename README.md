@@ -1,4 +1,4 @@
-# OpenLDAP PoC with Dell Enterprise SONiC
+# LDAP Authentication Testing for Dell Enterprise SONIC
 
 
 [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-orange.svg)](#-how-to-contribute)
@@ -9,178 +9,136 @@ Built and maintained by [Ben Goldstone](https://github.com/benjamingoldstone/) a
 
 ------------------
 
-## Contents
+## 📑 Contents
 
-- [Description and Objective](#-description-and-objective)
-- [Requirements](#-requirements)
-- [How to Use](#-how-to-use)
-- [How to Contribute](#-how-to-contribute)
-
+- [Description and Objective](#description-and-objective)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [LDAP Structure Details](#ldap-structure-details)
+- [Troubleshooting](#troubleshooting)
+- [How to Contribute](#how-to-contribute)
 
 ## 🚀 Description and Objective
 
-This repository's main aim is to simplify testing of LDAP authentication setup with Dell Enterprise SONIC (DES) by providing easy to use ansible playbooks to simplify the setup  of Linux and Active Directory (AD) like structures using OpenLDAP instance. 
+This repository provides ansible playbooks to simplify LDAP authentication testing with Dell Enterprise SONIC (DES). It helps set up Linux and Active Directory (AD)-like structures using OpenLDAP, making it easier to test and validate your LDAP authentication configuration.
 
-Active Directory part doesn't rely on any  ``POSIX`` add-ons or overlays to be installed, and switch [example](src/sonic-ad-ldap-config) configuration will work against a real Active Directory server too.
+⚠️ **IMPORTANT DISCLAIMER**
+This setup is intended for Proof of Concept (PoC) and testing environments only. It is NOT suitable for production use due to security limitations. For production environments, please follow your organization's security best practices and implement proper security controls.
 
-In both cases, the easiest approach was taken: 
+### Limitations and Constraints
+- No TLS/SSL encryption implemented
+- Uses a single password for all users and LDAP bind operations
+- Simplified LDAP schema without advanced security features
+- Basic setup without high availability or redundancy
+- No audit logging or advanced security controls
 
-- no group names to be stored in LDAP
-- no sudo information to be stored in LDAP
-- no groups named after system groups (i.e. sudoers)
+### Key Features
+- Supports both Linux-style and Active Directory-style LDAP configurations
+- No POSIX add-ons or overlays required for AD setup
+- Compatible with real Active Directory server configurations
+- Simplified approach without complex LDAP schema requirements
 
-Following users and roles (groups) will be created:
+## 📋 Requirements
 
-### Users:
+- Ubuntu 22.04 server or virtual machine
+- Ansible 2.10 or higher
+- Dell Enterprise SONIC (DES) instance
+- Python pip (automatically managed by playbook)
 
-- admin
-- testadmin
-- testnetadmin
-- testsecadmin
-- testoperator
+## 💾 Installation
 
-(user admin is identical to buil-in user ``admin``)
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   ```
 
-### Roles (groups)
+2. Update the password in your chosen playbook:
+   - For Linux: Edit `src/setup_linux_opennldap.yaml`
+   - For Active Directory: Edit `src/setup_ad_like_openldap.yaml`
 
-- sonic-admins 
+3. Edit the `src/inventory` file to specify your LDAP host.
+
+## ⚙️ Configuration
+
+### Predefined Users and Roles
+
+#### Users:
+| Username | Description |
+|----------|-------------|
+| admin | Equivalent to built-in admin |
+| testadmin | Test admin user |
+| testnetadmin | Test network admin |
+| testsecadmin | Test security admin |
+| testoperator | Test operator |
+
+#### Roles (Groups):
+- sonic-admins
 - sonic-netadmins
 - sonic-secadmins
 - sonic-operators
 
-User and group IDs are created with DES built-in limits in mind, see ``/etc/adduser.conf`` for details. No LDAP users and roles/groups (current or future) will therefore overlap with built-in ones. Used role names closely match role names used in DES.
+All users and groups are created with IDs that comply with DES built-in limits (`/etc/adduser.conf`).
 
-The oft used ``example.com`` test domain was used, together with ``organizational units (OU)`` ``Users`` for users and ``Groups`` for roles/groups. Same password is used for OpenLDAP for base ``distinguished name (DN)`` and all users.
+### Domain Structure
+- Domain: `example.com`
+- Users OU: `ou=Users,dc=example,dc=com`
+- Groups OU: `ou=Groups,dc=example,dc=com`
 
-The ansible playbook takes care of all ``pip`` dependencies needed for a smooth run.
+## 🔧 Usage
 
-### Sample switch configuration
+1. Run the appropriate playbook:
+   ```bash
+   # For Linux-style LDAP
+   ansible-playbook src/setup_linux_opennldap.yaml --ask-become-pass
 
-Sample switch configuration is provided in here for [Linux](src/sonic-linux-ldap-config) and [Active Directory](src/sonic-ad-ldap-config) backends.
+   # For AD-style LDAP
+   ansible-playbook src/setup_ad_like_openldap.yaml --ask-become-pass
+   ```
 
+2. Configure your switch:
+   - Use the sample configuration from:
+     - Linux: `src/sonic-linux-ldap-config`
+     - Active Directory: `src/sonic-ad-ldap-config`
+   - Set the LDAP bind password:
+     ```bash
+     ldap-server bindpw <your-password> encrypted
+     ```
 
-## 📋 Requirements
+3. Test the authentication:
+   ```bash
+   ssh testadmin@<switch-ip>
+   ```
 
-- Ubuntu 22.04 server or a virtual machine
-- ansible 2.10+
-- an instance of DES
+## 📚 LDAP Structure Details
 
-## How to Use
+### Active Directory Required Attributes
 
-- Clone the repository to your machine
-- Set the password on line 7 of the [Linux](src/setup_linux_opennldap.yaml) or [Active Directory](src/setup_ad_like_openldap.yaml) playbook and save
-- Create minimal ansible ``inventory`` [file](src/inventory) and define LDAP host where OpenLDAP should installed
-- Run the playbook (with ``--ask-become-pass`` option or provide some other method how to access ``become`` password )
-- Configure your switch using stock configuration for [Linux](src/sonic-linux-ldap-config) or [Active Directory](src/sonic-ad-ldap-config) (don't forget to set the LDAP ``bindpw`` password manually: ``ldap-server bindpw <redacted> encrypted``, it should match the password you set in your ansible playbook)
-- Test the login process
+#### User Attributes:
+- `uidNumber`: User ID number
+- `gidNumber`: Group ID number (must match group's gidNumber)
+- `homeDirectory`: Format `/home/<user>`
 
-## Note on Active Directory structures
+#### Group Attributes:
+- `gidNumber`: Group ID number
 
-### Required attributes
+### Group Membership Differences
 
-For DES to succesfuly authenticate against Active Directory LDAP backend, one needs to populate these attributes (ansible playbook takes care of it) to Active Directory:
+#### Linux-style LDAP
+In Linux-style LDAP, group membership is stored at the group level using the `memberUid` attribute:
 
-#### User
-
-- uiDNumber (User ID number)
-- gidNumber (Group ID number) // this needs to match the gidNumber below
-- homeDirectory (Home directory in ``/home/<user>`` format)
-
-#### Group
-
-- gidNumber (Group ID number)
-
-These attributes are not populated by default ff you use an actual Active Directory
-
-### Attribute mapping
-
-Because of differences in Active Directory LDAP attributes, following attributes need to be mapped on DES side in order to LDAP authentication work:
-
-| DES side | AD side |
-|------------|---------|
-| memberUid | sAMAccountName |
-| uniqueMember | member |
-| pam-login-attribute | sAMAccountName |
-| pam-member-attribute | member |
-| posixAccount | user |
-| shadowAccount | user |
-| posixGroup | group |
-
-### Group membership
-
-The [Active Directory](src/setup_ad_like_openldap.yaml) playbook will setup all important AD structures including ``memberOf`` and ``refint`` (referential integrity) overlays, even though DES in its current LDAP implementation doesn't use them. 
-
-Please note that group information (such as ``groupType``) has different meaning in Active Directory world. It is not used to infer group membership, ``gidNumber`` mentioned above is used to do that.
-
-The main difference between ``memberOf`` and Linux approach is that Linux stores group membership separately, AD stores it together with user information:
-
-``ldapsearch -x -LLL -b dc=example,dc=com "(memberOf=cn=sonic-admins,ou=Groups,dc=example,dc=com)"``:
-
-```
-dn: cn=admin,ou=People,dc=example,dc=com
-objectClass: top
-objectClass: person
-objectClass: organizationalPerson
-objectClass: user
-cn: admin
-sn: admin
-userPrincipalName: admin@example.com
-sAMAccountName: admin
-distinguishedName: cn=admin,ou=People,dc=example,dc=com
-uidNumber: 1000
-gidNumber: 60000
-memberOf: cn=sonic-admins,ou=Groups,dc=example,dc=com
-
-dn: cn=testadmin,ou=People,dc=example,dc=com
-objectClass: top
-objectClass: person
-objectClass: organizationalPerson
-objectClass: user
-cn: testadmin
-sn: testadmin
-userPrincipalName: testadmin@example.com
-sAMAccountName: testadmin
-distinguishedName: cn=testadmin,ou=People,dc=example,dc=com
-uidNumber: 60100
-gidNumber: 60000
-homeDirectory: /home/testadmin
-memberOf: cn=sonic-admins,ou=Groups,dc=example,dc=com
-```
-
-and
-
-``ldapsearch -x -LLL -b dc=example,dc=com '(&(objectClass=group)(cn=sonic-admins))'``:
-
-```
-dn: cn=sonic-admins,ou=Groups,dc=example,dc=com
-objectClass: top
-objectClass: group
-cn: sonic-admins
-sAMAccountName: sonic-admins
-groupType: -2147483646
-gidNumber: 60000
-member: cn=admin,ou=People,dc=example,dc=com
-member: cn=testadmin,ou=People,dc=example,dc=com
-```
-
-**bold**versus**bold**
-
-``ldapsearch -x -LLL -b dc=example,dc=com '(&(objectClass=posixGroup)(cn=sonic-admins))'``:
-
-```
+```ldif
+# Group Entry Example
 dn: cn=sonic-admins,ou=Groups,dc=example,dc=com
 objectClass: posixGroup
 cn: sonic-admins
 gidNumber: 60000
-memberUid: cn=admin,ou=People,dc=example,dc=com
-memberUid: cn=testadmin,ou=People,dc=example,dc=com
-```
+memberUid: testadmin
+memberUid: admin
 
-and
-
-``ldapsearch -x -LLL -b dc=example,dc=com '(&(objectClass=posixAccount)(uid=testadmin))'``:
-
-```
+# User Entry Example
 dn: cn=testadmin,ou=People,dc=example,dc=com
 objectClass: inetOrgPerson
 objectClass: posixAccount
@@ -193,6 +151,156 @@ gidNumber: 60000
 homeDirectory: /home/testadmin
 ```
 
+Key characteristics:
+- Group membership is stored in the group entry
+- Users reference their primary group using `gidNumber`
+- Simple but requires searching group entries to determine user's groups
+- No built-in support for nested groups
+
+#### Active Directory-style LDAP
+In AD-style LDAP, group membership is bidirectional using `member` and `memberOf` attributes:
+
+```ldif
+# Group Entry Example
+dn: cn=sonic-admins,ou=Groups,dc=example,dc=com
+objectClass: top
+objectClass: group
+cn: sonic-admins
+sAMAccountName: sonic-admins
+groupType: -2147483646
+gidNumber: 60000
+member: cn=admin,ou=People,dc=example,dc=com
+member: cn=testadmin,ou=People,dc=example,dc=com
+
+# User Entry Example
+dn: cn=testadmin,ou=People,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: user
+cn: testadmin
+sn: testadmin
+sAMAccountName: testadmin
+distinguishedName: cn=testadmin,ou=People,dc=example,dc=com
+uidNumber: 60100
+gidNumber: 60000
+homeDirectory: /home/testadmin
+memberOf: cn=sonic-admins,ou=Groups,dc=example,dc=com
+```
+
+Key characteristics:
+- Group membership is stored in both user and group entries
+- `memberOf` attribute in user entry lists all groups
+- `member` attribute in group entry lists all members
+- Supports efficient group membership queries
+- Enables nested group memberships (not used in this PoC)
+- Requires `memberOf` overlay in OpenLDAP
+- Uses full DNs instead of just usernames
+
+### Attribute Mapping
+
+| DES Attribute | AD Attribute |
+|---------------|--------------|
+| memberUid | sAMAccountName |
+| uniqueMember | member |
+| pam-login-attribute | sAMAccountName |
+| pam-member-attribute | member |
+| posixAccount | user |
+| shadowAccount | user |
+| posixGroup | group |
+
+### DES Configuration Impact
+
+#### Linux-style:
+```bash
+ldap-server attribute pam-login-attribute uid
+ldap-server attribute pam-member-attribute memberUid
+```
+
+#### AD-style:
+```bash
+ldap-server attribute pam-login-attribute sAMAccountName
+ldap-server attribute pam-member-attribute member
+```
+
+## 🔍 Troubleshooting
+
+### Verifying LDAP Server Setup
+
+#### For Both Linux and AD:
+```bash
+# Test LDAP server accessibility
+ldapsearch -H ldap://<server-ip> -x -b "dc=example,dc=com" -LLL
+
+# Test bind credentials
+ldapwhoami -H ldap://<server-ip> -x -D "cn=admin,dc=example,dc=com" -W
+```
+
+#### For Linux-style LDAP:
+```bash
+# Verify user attributes
+ldapsearch -x -LLL -b dc=example,dc=com '(&(objectClass=posixAccount)(uid=testadmin))'
+
+# Check group membership
+ldapsearch -x -LLL -b dc=example,dc=com '(&(objectClass=posixGroup)(memberUid=testadmin))'
+
+# Verify password functionality (will prompt for password)
+ldapwhoami -x -D "uid=testadmin,ou=People,dc=example,dc=com" -W
+```
+
+#### For Active Directory-style:
+```bash
+# Verify user attributes
+ldapsearch -x -LLL -b dc=example,dc=com '(&(objectClass=user)(sAMAccountName=testadmin))'
+
+# Check group membership
+ldapsearch -x -LLL -b dc=example,dc=com "(memberOf=cn=sonic-admins,ou=Groups,dc=example,dc=com)"
+
+# Verify group attributes
+ldapsearch -x -LLL -b dc=example,dc=com '(&(objectClass=group)(cn=sonic-admins))'
+
+# Test AD-style bind (will prompt for password)
+ldapwhoami -x -D "cn=testadmin,ou=People,dc=example,dc=com" -W
+```
+
+### Verifying Switch Configuration
+
+```bash
+# Show LDAP configuration
+show ldap-server
+
+# Show LDAP server status
+show ldap-server status
+
+# Test authentication (will prompt for password)
+ssh testadmin@<switch-ip>
+
+# View authentication logs
+sudo tail -f /var/log/auth.log
+```
+
+### Common Issues and Solutions
+
+1. **Connection Refused**
+   - Verify LDAP server is running:
+     ```bash
+     sudo systemctl status slapd
+     ```
+   - Check firewall settings:
+     ```bash
+     sudo ufw status
+     ```
+
+2. **Authentication Failures**
+   - Verify bind DN and password
+   - Check user DN format matches configuration
+   - Ensure user exists in correct OU
+   - Verify group membership
+
+3. **Group Membership Issues**
+   - For Linux: Check `memberUid` attribute
+   - For AD: Verify `memberOf` attribute
+   - Ensure group GID matches user's primary GID
 
 
 ## 👏 How to Contribute
