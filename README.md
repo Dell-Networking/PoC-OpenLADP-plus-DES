@@ -68,7 +68,7 @@ Sample switch configuration is provided in here for [Linux](src/sonic-linux-ldap
 - Clone the repository to your machine
 - Set the password on line 7 of the [Linux](src/setup_linux_opennldap.yaml) or [Active Directory](src/setup_ad_like_openldap.yaml) playbook and save
 - Run the playbook
-- Configure your switch using stock configuration for [Linux](src/sonic-linux-ldap-config) or [Active Directory](src/sonic-ad-ldap-config)
+- Configure your switch using stock configuration for [Linux](src/sonic-linux-ldap-config) or [Active Directory](src/sonic-ad-ldap-config) (don't forget to set the LDAP ``bindpw`` password manually: ``ldap-server bindpw <redacted> encrypted``, it should match the password you set in your ansible playbook)
 - Test the login process
 
 ## 👏 How to Contribute
