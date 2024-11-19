@@ -86,7 +86,7 @@ All users and groups are created with IDs that comply with DES built-in limits (
 - Users OU: `ou=Users,dc=example,dc=com`
 - Groups OU: `ou=Groups,dc=example,dc=com`
 
-Feel free to change the predefined users, group, organizational units or domain as you see fit.
+Feel free to change the predefined domain, organizational units, user or role names (groups) as you see fit.
 
 ## 🔧 Usage
 
