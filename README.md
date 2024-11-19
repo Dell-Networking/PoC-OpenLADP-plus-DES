@@ -69,8 +69,8 @@ Sample switch configuration is provided in here for [Linux](src/sonic-linux-ldap
 
 - Clone the repository to your machine
 - Set the password on line 7 of the [Linux](src/setup_linux_opennldap.yaml) or [Active Directory](src/setup_ad_like_openldap.yaml) playbook and save
-- Create minimal ansible ``inventory`` [file](src/inventory) and define LDAP host where OpenLDAP will worh
-- Run the playbook (with ``--ask-become-pass`` option or )
+- Create minimal ansible ``inventory`` [file](src/inventory) and define LDAP host where OpenLDAP should installed
+- Run the playbook (with ``--ask-become-pass`` option or provide some other method how to access ``become`` password )
 - Configure your switch using stock configuration for [Linux](src/sonic-linux-ldap-config) or [Active Directory](src/sonic-ad-ldap-config) (don't forget to set the LDAP ``bindpw`` password manually: ``ldap-server bindpw <redacted> encrypted``, it should match the password you set in your ansible playbook)
 - Test the login process
 
@@ -78,19 +78,19 @@ Sample switch configuration is provided in here for [Linux](src/sonic-linux-ldap
 
 ### Required attributes
 
-For DES to succesfuly authenticate against Active Directory LDAP backend, one needs to add these attributes (ansible playbook takes care of it) to AD structure:
+For DES to succesfuly authenticate against Active Directory LDAP backend, one needs to populate these attributes (ansible playbook takes care of it) to Active Directory:
 
 #### User
 
 - uiDNumber (User ID number)
 - gidNumber (Group ID number) // this needs to match the gidNumber below
-- homeDirectory (Home directory in /home/<user> format)
+- homeDirectory (Home directory in ``/home/<user>`` format)
 
 #### Group
 
 - gidNumber (Group ID number)
 
-If you use an actual Active Directory, then these attributes are not populated by default.
+These attributes are not populated by default ff you use an actual Active Directory
 
 ### Attribute mapping
 
@@ -108,7 +108,9 @@ Because of differences in Active Directory LDAP attributes, following attributes
 
 ### Group membership
 
-The [Active Directory](src/setup_ad_like_openldap.yaml) playbook will setup all important AD structures including ``memberOf`` and ``refint`` (referential integrity) overlays, even though DES in its current LDAP implementation doesn't use them. Please note that group information (such as ``groupType``) has different meaning in Active Directory world. It is not used to infer group membership, ``gidNumber`` mentioned above is used to do that.
+The [Active Directory](src/setup_ad_like_openldap.yaml) playbook will setup all important AD structures including ``memberOf`` and ``refint`` (referential integrity) overlays, even though DES in its current LDAP implementation doesn't use them. 
+
+Please note that group information (such as ``groupType``) has different meaning in Active Directory world. It is not used to infer group membership, ``gidNumber`` mentioned above is used to do that.
 
 The main difference between ``memberOf`` and Linux approach is that Linux stores group membership separately, AD stores it together with user information:
 
@@ -161,7 +163,7 @@ member: cn=admin,ou=People,dc=example,dc=com
 member: cn=testadmin,ou=People,dc=example,dc=com
 ```
 
-versus
+**bold**versus**bold**
 
 ``ldapsearch -x -LLL -b dc=example,dc=com '(&(objectClass=posixGroup)(cn=sonic-admins))'``:
 
