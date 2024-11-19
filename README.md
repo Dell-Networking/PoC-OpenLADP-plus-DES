@@ -67,9 +67,65 @@ Sample switch configuration is provided in here for [Linux](src/sonic-linux-ldap
 
 - Clone the repository to your machine
 - Set the password on line 7 of the [Linux](src/setup_linux_opennldap.yaml) or [Active Directory](src/setup_ad_like_openldap.yaml) playbook and save
-- Run the playbook
+- Create minimal ansible ``inventory`` [file](src/inventory) and define LDAP host where OpenLDAP will worh
+- Run the playbook ()
 - Configure your switch using stock configuration for [Linux](src/sonic-linux-ldap-config) or [Active Directory](src/sonic-ad-ldap-config) (don't forget to set the LDAP ``bindpw`` password manually: ``ldap-server bindpw <redacted> encrypted``, it should match the password you set in your ansible playbook)
 - Test the login process
+
+## Note of Active Directory structures
+
+The [Active Directory](src/setup_ad_like_openldap.yaml) playbook will setup all important AD structures including ``memberOf`` and ``refint`` (referential integrity) overlays, even though DES in its current LDAP implementation doesn't use them. 
+
+The main difference between ``memberOf`` and Linux approach is that Linux stores group membership separately, AD stores it together with user information:
+
+``ldapsearch -x -LLL -b dc=example,dc=com "(memberOf=cn=sonic-admins,ou=Groups,dc=example,dc=com)"``:
+
+```
+dn: cn=admin,ou=People,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: user
+cn: admin
+sn: admin
+userPrincipalName: admin@example.com
+sAMAccountName: admin
+distinguishedName: cn=admin,ou=People,dc=example,dc=com
+uidNumber: 1000
+gidNumber: 60000
+memberOf: cn=sonic-admins,ou=Groups,dc=example,dc=com
+
+dn: cn=testadmin,ou=People,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: user
+cn: testadmin
+sn: testadmin
+userPrincipalName: testadmin@example.com
+sAMAccountName: testadmin
+distinguishedName: cn=testadmin,ou=People,dc=example,dc=com
+uidNumber: 60100
+gidNumber: 60000
+homeDirectory: /home/testadmin
+memberOf: cn=sonic-admins,ou=Groups,dc=example,dc=com
+```
+
+and
+
+``ldapsearch -x -LLL -b dc=example,dc=com '(&(objectClass=group)(cn=sonic-admins))'``:
+
+```
+dn: cn=sonic-admins,ou=Groups,dc=example,dc=com
+objectClass: top
+objectClass: group
+cn: sonic-admins
+sAMAccountName: sonic-admins
+groupType: -2147483646
+gidNumber: 60000
+member: cn=admin,ou=People,dc=example,dc=com
+member: cn=testadmin,ou=People,dc=example,dc=com
+```
 
 ## 👏 How to Contribute
 
