@@ -94,9 +94,17 @@ If you use an actual Active Directory, then these attributes are not populated b
 
 ### Attribute mapping
 
-Following attributes need to be mapped on DES side in order to LDAP authentication work:
+Because of differences in Active Directory LDAP attributes, following attributes need to be mapped on DES side in order to LDAP authentication work:
 
-
+| DES side | AD side |
+|------------|---------|
+| memberUid | sAMAccountName |
+| uniqueMember | member |
+| pam-login-attribute | sAMAccountName |
+| pam-member-attribute | member |
+| posixAccount | user |
+| shadowAccount | user |
+| posixGroup | group |
 
 ### Group membership
 
@@ -119,7 +127,7 @@ sAMAccountName: admin
 distinguishedName: cn=admin,ou=People,dc=example,dc=com
 uidNumber: 1000
 gidNumber: 60000
-**bold**memberOf: cn=sonic-admins,ou=Groups,dc=example,dc=com**bold**
+memberOf: cn=sonic-admins,ou=Groups,dc=example,dc=com
 
 dn: cn=testadmin,ou=People,dc=example,dc=com
 objectClass: top
@@ -134,7 +142,7 @@ distinguishedName: cn=testadmin,ou=People,dc=example,dc=com
 uidNumber: 60100
 gidNumber: 60000
 homeDirectory: /home/testadmin
-**bold**memberOf: cn=sonic-admins,ou=Groups,dc=example,dc=com**bold**
+memberOf: cn=sonic-admins,ou=Groups,dc=example,dc=com
 ```
 
 and
@@ -149,8 +157,8 @@ cn: sonic-admins
 sAMAccountName: sonic-admins
 groupType: -2147483646
 gidNumber: 60000
-**bold**member: cn=admin,ou=People,dc=example,dc=com**bold**
-**bold**member: cn=testadmin,ou=People,dc=example,dc=com**bold**
+member: cn=admin,ou=People,dc=example,dc=com
+member: cn=testadmin,ou=People,dc=example,dc=com
 ```
 
 versus
@@ -162,8 +170,8 @@ dn: cn=sonic-admins,ou=Groups,dc=example,dc=com
 objectClass: posixGroup
 cn: sonic-admins
 gidNumber: 60000
-**bold**memberUid: cn=admin,ou=People,dc=example,dc=com**bold**
-**bold**memberUid: cn=testadmin,ou=People,dc=example,dc=com**bold**
+memberUid: cn=admin,ou=People,dc=example,dc=com
+memberUid: cn=testadmin,ou=People,dc=example,dc=com
 ```
 
 and
