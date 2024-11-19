@@ -12,7 +12,6 @@ Built and maintained by [Ben Goldstone](https://github.com/benjamingoldstone/) a
 ## 📑 Contents
 
 - [📚 Description and Objective](#-description-and-objective)
-- [✨ Features](#-features)
 - [📋 Requirements](#-requirements)
 - [💾 Installation](#-installation)
 - [⚙️ Configuration](#️-configuration)
@@ -80,7 +79,7 @@ This setup is intended for Proof of Concept (PoC) and testing environments only.
 - sonic-secadmins
 - sonic-operators
 
-All users and groups are created with IDs that comply with DES built-in limits (`/etc/adduser.conf`) so any future local or LDAP users/groups won't cause any issues.
+All users and groups are created with IDs that comply with DES built-in limits ( see `/etc/adduser.conf`) so any local or LDAP users/groups created in the future won't cause any issues.
 
 ### Domain Structure
 - Domain: `example.com`
