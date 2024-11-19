@@ -30,23 +30,18 @@
         update_cache: yes
 
     - name: Pre-seed slapd configuration before installation
-      debconf:
-        name: slapd
-        question: "{{ item.question }}"
-        value: "{{ item.value }}"
-        vtype: "{{ item.vtype }}"
-      loop:
-        - { question: 'slapd/root_password', value: '{{ password }}', vtype: 'password' }
-        - { question: 'slapd/root_password_again', value: '{{ password }}', vtype: 'password' }
-        - { question: 'slapd/domain', value: '{{ domain }}', vtype: 'string' }
-        - { question: 'shared/organization', value: '{{ domain }}', vtype: 'string' }
-        - { question: 'slapd/password1', value: '{{ password }}', vtype: 'password' }
-        - { question: 'slapd/password2', value: '{{ password }}', vtype: 'password' }
-        - { question: 'slapd/backend', value: 'MDB', vtype: 'string' }
-        - { question: 'slapd/purge_database', value: 'true', vtype: 'boolean' }
-        - { question: 'slapd/move_old_database', value: 'true', vtype: 'boolean' }
-        - { question: 'slapd/allow_ldap_v2', value: 'false', vtype: 'boolean' }
-        - { question: 'slapd/no_configuration', value: 'false', vtype: 'boolean' }
+      shell: |
+        echo "slapd slapd/root_password password {{ password }}" | debconf-set-selections
+        echo "slapd slapd/root_password_again password {{ password }}" | debconf-set-selections
+        echo "slapd slapd/domain string {{ domain }}" | debconf-set-selections
+        echo "slapd shared/organization string {{ domain }}" | debconf-set-selections
+        echo "slapd slapd/password1 password {{ password }}" | debconf-set-selections
+        echo "slapd slapd/password2 password {{ password }}" | debconf-set-selections
+        echo "slapd slapd/backend string MDB" | debconf-set-selections
+        echo "slapd slapd/purge_database boolean true" | debconf-set-selections
+        echo "slapd slapd/move_old_database boolean true" | debconf-set-selections
+        echo "slapd slapd/allow_ldap_v2 boolean false" | debconf-set-selections
+        echo "slapd slapd/no_configuration boolean false" | debconf-set-selections
 
     - name: Install LDAP packages
       apt:
@@ -187,6 +182,10 @@
     - name: Ensure sAMAccountName is indexed
       command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/add_samaccountname_index.ldif
       become: yes
+      register: index_result
+      failed_when:
+        - index_result.rc != 0
+        - "'Type or value exists' not in index_result.stderr"
 
     - name: Check if memberof module is loaded
       command: ldapsearch -Y EXTERNAL -H ldapi:/// -b cn=config '(olcModuleLoad=memberof)'
