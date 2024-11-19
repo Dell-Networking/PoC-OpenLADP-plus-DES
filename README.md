@@ -80,29 +80,31 @@ This setup is intended for Proof of Concept (PoC) and testing environments only.
 - sonic-secadmins
 - sonic-operators
 
-All users and groups are created with IDs that comply with DES built-in limits (`/etc/adduser.conf`).
+All users and groups are created with IDs that comply with DES built-in limits (`/etc/adduser.conf`) so any future local or LDAP users/groups won't cause any issues.
 
 ### Domain Structure
 - Domain: `example.com`
 - Users OU: `ou=Users,dc=example,dc=com`
 - Groups OU: `ou=Groups,dc=example,dc=com`
 
+Feel free to change the predefined users, group, organizational units or domain as you see fit.
+
 ## 🔧 Usage
 
 1. Run the appropriate playbook:
    ```bash
    # For Linux-style LDAP
-   ansible-playbook src/setup_linux_opennldap.yaml --ask-become-pass
+   ansible-playbook -i src/inventory src/setup_linux_opennldap.yaml --ask-become-pass
 
    # For AD-style LDAP
-   ansible-playbook src/setup_ad_like_openldap.yaml --ask-become-pass
+   ansible-playbook -i src/inventory src/setup_ad_like_openldap.yaml --ask-become-pass
    ```
 
 2. Configure your switch:
    - Use the sample configuration from:
      - Linux: `src/sonic-linux-ldap-config`
      - Active Directory: `src/sonic-ad-ldap-config`
-   - Set the LDAP bind password:
+   - Set the LDAP bind password (this needs to be done manually on every DES instance as hashe dpassword will differ):
      ```bash
      ldap-server bindpw <your-password> encrypted
      ```
@@ -209,18 +211,22 @@ Key characteristics:
 | shadowAccount | user |
 | posixGroup | group |
 
-### DES Configuration Impact
+### AD DES Configuration Impact
 
-#### Linux-style:
-```bash
-ldap-server attribute pam-login-attribute uid
-ldap-server attribute pam-member-attribute memberUid
-```
-
-#### AD-style:
+#### PAM and NSS Attribute Configuration:
 ```bash
 ldap-server attribute pam-login-attribute sAMAccountName
 ldap-server attribute pam-member-attribute member
+```
+#### LDAP Attribute and ObjectClass Configuration:
+```bash
+ldap-server map attribute memberUid to sAMAccountName
+ldap-server map attribute memberOf to memberOf
+ldap-server map attribute uid to sAMAccountName
+ldap-server map attribute uniqueMember to member
+ldap-server map objectclass posixAccount to user
+ldap-server map objectclass shadowAccount to user
+ldap-server map objectclass posixGroup to group
 ```
 
 ## 🔍 Troubleshooting
