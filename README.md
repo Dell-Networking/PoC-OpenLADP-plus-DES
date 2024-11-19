@@ -199,6 +199,8 @@ Key characteristics:
 - Requires `memberOf` overlay in OpenLDAP
 - Uses full DNs instead of just usernames
 
+Please note that current DES LDAP AD authentication is not able to use ``memberOf`` and ``member`` approach, it is showed here for completeness purposes only. This is why attribute and ObjectClass mapping is important for AD environements.
+
 ### Attribute Mapping
 
 | DES Attribute | AD Attribute |
