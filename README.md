@@ -1,4 +1,4 @@
-# Template repo for SONiC PoC Repos
+# OpenLDAP PoC with Dell Enterprise SONiC
 
 
 [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-orange.svg)](#-how-to-contribute)
@@ -13,20 +13,21 @@ Built and maintained by [Ben Goldstone](https://github.com/benjamingoldstone/) a
 
 - [Description and Objective](#-description-and-objective)
 - [Requirements](#-requirements)
+- [How to Use](#-how-to-use)
 - [How to Contribute](#-how-to-contribute)
 
 
 ## 🚀 Description and Objective
 
-This repository's main aim is to simplify testing of LDAP authentication in Dell Enterprise SONIC (DES) by providing ansible playbooks to setup  Linux and Active Directory (AD) like structures using OpenLDAP (mostly for licensing and ease of setup reasons). 
+This repository's main aim is to simplify testing of LDAP authentication setup with Dell Enterprise SONIC (DES) by providing easy to use ansible playbooks to simplify the setup  of Linux and Active Directory (AD) like structures using OpenLDAP instance. 
 
 In both cases, the easiest approach was taken: 
 
-- no groups to be stored in LDAP
+- no group names to be stored in LDAP
 - no sudo information to be stored in LDAP
-- no group named after system groups (i.e. sudoers)
+- no groups named after system groups (i.e. sudoers)
 
-Therefore following users and groups/roles will be created:
+Following users and roles (groups) will be created:
 
 ### Users:
 
@@ -38,14 +39,22 @@ Therefore following users and groups/roles will be created:
 
 (user admin is identical to buil-in user ``admin``)
 
-### Groups/roles
+### Roles (groups)
 
 - sonic-admins 
 - sonic-netadmins
 - sonic-secadmins
 - sonic-operators
 
-User and group IDs are created with DES built-in limits in mind (see ``/etc/adduser.conf`` for details) - so LDAP users and groups/roles (current or future) don't overlap with built-in ones.
+User and group IDs are created with DES built-in limits in mind, see ``/etc/adduser.conf`` for details. No LDAP users and roles/groups (current or future) will therefore overlap with built-in ones. Used role names closely match role names used in DES.
+
+The oft used ``example.com`` test domain was used, together with ``organizational units (OU)`` ``Users`` for users and ``Groups`` for roles/groups. Same password is used for OpenLDAP for base ``distinguished name (DN)`` and all users.
+
+The ansible playbook takes care of all ``pip`` dependencies needed for a smooth run.
+
+### Sample switch configuration
+
+Sample switch configuration is provided in here for [Linux](src/sonic-linux-ldap-config) and [Active Directory](src/sonic-ad-ldap-config) backends.
 
 
 ## 📋 Requirements
@@ -54,6 +63,13 @@ User and group IDs are created with DES built-in limits in mind (see ``/etc/addu
 - ansible 2.10+
 - an instance of DES
 
+## How to Use
+
+- Clone the repository to your machine
+- Set the password on line 7 of the playbook and save
+- Run the playbook
+- Configure your switch using stock configuration for for [Linux](src/sonic-linux-ldap-config) or [Active Directory](src/sonic-ad-ldap-config)
+- Test the login process
 
 ## 👏 How to Contribute
 
