@@ -11,15 +11,15 @@ Built and maintained by [Ben Goldstone](https://github.com/benjamingoldstone/) a
 
 ## 📑 Contents
 
-- [Description and Objective](#description-and-objective)
-- [Features](#features)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [LDAP Structure Details](#ldap-structure-details)
-- [Troubleshooting](#troubleshooting)
-- [How to Contribute](#how-to-contribute)
+- [📚 Description and Objective](#-description-and-objective)
+- [✨ Features](#-features)
+- [📋 Requirements](#-requirements)
+- [💾 Installation](#-installation)
+- [⚙️ Configuration](#️-configuration)
+- [🔧 Usage](#-usage)
+- [📚 LDAP Structure Details](#-ldap-structure-details)
+- [🔍 Troubleshooting](#-troubleshooting)
+- [🤝 How to Contribute](#-how-to-contribute)
 
 ## 🚀 Description and Objective
 
@@ -59,7 +59,7 @@ This setup is intended for Proof of Concept (PoC) and testing environments only.
    - For Linux: Edit [src/setup_linux_opennldap.yaml](src/setup_linux_opennldap.yaml)
    - For Active Directory: Edit [src/setup_linux_opennldap.yaml](src/setup_ad_like_openldap.yaml)
 
-3. Edit the `src/inventory` file to specify your LDAP host.
+3. Edit the [](src/inventory) file to specify your LDAP host.
 
 ## ⚙️ Configuration
 
