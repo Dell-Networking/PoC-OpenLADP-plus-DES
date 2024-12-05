@@ -1,0 +1,5 @@
+[ldap_servers]
+ldap_server ansible_host=127.0.0.1
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3

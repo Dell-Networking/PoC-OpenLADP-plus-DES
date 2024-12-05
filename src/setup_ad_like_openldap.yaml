@@ -1,0 +1,432 @@
+---
+- name: Set up and configure OpenLDAP with AD-like structure
+  hosts: ldap_servers
+  become: yes
+  vars:
+    domain: "example.com"
+    password: ""
+    ldap_base: "dc=example,dc=com"
+    ldap_users: "ou=People"
+    ldap_groups: "ou=Groups"
+    uid_start: 60100
+    gid_start: 60000
+    users:
+      - { cn: "admin", sn: "admin", uid: "admin" }
+      - { cn: "testadmin", sn: "testadmin", uid: "testadmin" }
+      - { cn: "testnetadmin", sn: "testnetadmin", uid: "testnetadmin" }
+      - { cn: "testsecadmin", sn: "testsecadmin", uid: "testsecadmin" }
+      - { cn: "testoperator", sn: "testoperator", uid: "testoperator" }
+    special_groups:
+      - { cn: "sonic-admins",  members: ["admin", "testadmin"] }
+      - { cn: "sonic-netadmins",  members: ["testnetadmin"] }
+      - { cn: "sonic-secadmins",  members: ["testsecadmin"] }
+      - { cn: "sonic-operators",  members: ["testoperator"] }
+
+  tasks:
+    - name: Install debconf-utils
+      apt:
+        name: debconf-utils
+        state: present
+        update_cache: yes
+
+    - name: Pre-seed slapd configuration before installation
+      shell: |
+        echo "slapd slapd/root_password password {{ password }}" | debconf-set-selections
+        echo "slapd slapd/root_password_again password {{ password }}" | debconf-set-selections
+        echo "slapd slapd/domain string {{ domain }}" | debconf-set-selections
+        echo "slapd shared/organization string {{ domain }}" | debconf-set-selections
+        echo "slapd slapd/password1 password {{ password }}" | debconf-set-selections
+        echo "slapd slapd/password2 password {{ password }}" | debconf-set-selections
+        echo "slapd slapd/backend string MDB" | debconf-set-selections
+        echo "slapd slapd/purge_database boolean true" | debconf-set-selections
+        echo "slapd slapd/move_old_database boolean true" | debconf-set-selections
+        echo "slapd slapd/allow_ldap_v2 boolean false" | debconf-set-selections
+        echo "slapd slapd/no_configuration boolean false" | debconf-set-selections
+
+    - name: Install LDAP packages
+      apt:
+        name: 
+          - slapd
+          - ldap-utils
+        state: present
+        update_cache: yes
+
+    - name: Ensure slapd is started
+      systemd:
+        name: slapd
+        state: started
+        enabled: yes
+
+    - name: Wait for LDAP to be ready
+      wait_for:
+        port: 389
+        delay: 10
+
+    - name: Verify LDAP root DSE
+      command: ldapsearch -Y EXTERNAL -H ldapi:/// -b "" -s base
+      register: ldap_rootdse
+      changed_when: false
+
+    - name: Display LDAP root DSE
+      debug:
+        var: ldap_rootdse.stdout_lines
+
+    - name: Verify base DN
+      command: ldapsearch -x -D cn=admin,{{ ldap_base }} -w {{ password }} -b {{ ldap_base }}
+      register: ldap_base_dn
+      changed_when: false
+
+    - name: Display base DN results
+      debug:
+        var: ldap_base_dn.stdout_lines
+
+    - name: Stop slapd service
+      systemd:
+        name: slapd
+        state: stopped
+
+    - name: Backup slapd.d directory
+      copy:
+        src: /etc/ldap/slapd.d
+        dest: /etc/ldap/slapd.d.bak
+        remote_src: yes
+
+    - name: Start slapd service
+      systemd:
+        name: slapd
+        state: started
+
+    - name: Wait for LDAP to be ready after restart
+      wait_for:
+        port: 389
+        delay: 10
+
+    - name: Check existing schema
+      command: ldapsearch -Y EXTERNAL -H ldapi:/// -b cn=schema,cn=config -LLL '(objectClass=olcSchemaConfig)'
+      register: existing_schema
+
+    - name: Add AD schema I
+      copy:
+        content: |
+         dn: cn=ad,cn=schema,cn=config
+         objectClass: olcSchemaConfig
+         cn: ad
+         olcAttributeTypes: ( 1.2.840.113556.1.4.221 NAME 'sAMAccountName' DESC 'sAMAccountName' EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 SINGLE-VALUE )
+         olcAttributeTypes: ( 1.2.840.113556.1.4.656 NAME 'userPrincipalName' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 SINGLE-VALUE )
+         olcAttributeTypes: ( 1.2.840.113556.1.4.750 NAME 'groupType' SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
+         olcAttributeTypes: ( 1.2.840.113556.1.4.98 NAME 'primaryGroupID' SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
+         olcAttributeTypes: ( 1.2.840.113556.1.2.102 NAME 'memberOf' SUP distinguishedName )
+         olcObjectClasses: ( 1.2.840.113556.1.5.9 NAME 'user' SUP organizationalPerson STRUCTURAL MUST ( cn ) MAY ( sAMAccountName $ userPrincipalName $ primaryGroupID $ distinguishedName $ uidNumber $ gidNumber $ loginShell $ homeDirectory $ memberOf ) )
+         olcObjectClasses: ( 1.2.840.113556.1.5.8 NAME 'group' SUP top STRUCTURAL MUST ( cn ) MAY ( sAMAccountName $ groupType $ gidNumber $ member ) )
+         olcObjectClasses: ( 1.2.840.113556.1.5.6 NAME 'samAccount' DESC 'samAccount' SUP top AUXILIARY MAY ( sAMAccountName ) )
+        dest: /tmp/ad_schema1.ldif
+
+    - name: Display AD schema LDIF content
+      command: cat /tmp/ad_schema1.ldif
+      register: ad_schema_content1
+
+    - name: Show AD schema LDIF content
+      debug:
+        var: ad_schema_content1.stdout_lines
+    
+    - name: Load AD schema I
+      become: yes
+      command: ldapadd -Y EXTERNAL -H ldapi:/// -f /tmp/ad_schema1.ldif
+      register: load_ad_schema1
+      when: "'1.2.840.113556.1.5.9' not in existing_schema.stdout"
+    
+    - name: Show AD schema load result
+      debug:
+        var: load_ad_schema1
+    
+    - name: Show AD schema load result
+      debug:
+        var: load_ad_schema
+    - name: Verify AD schema attributes
+      become: yes
+      command: ldapsearch -H ldapi:/// -Y EXTERNAL -b 'cn=schema,cn=config' 'olcAttributeTypes=*1.2.840.113556*'
+      register: ad_schema_verify
+
+    - name: Display AD schema verification result
+      debug:
+        var: ad_schema_verify.stdout_lines
+    
+    - name: Verify AD schema object classes
+      become: yes
+      command: ldapsearch -H ldapi:/// -Y EXTERNAL -b 'cn=schema,cn=config' 'olcObjectClasses=*1.2.840.113556.1.5.8*'
+      register: ad_objectclass_verify
+
+    - name: Display AD schema verification result
+      debug:
+        var: ad_objectclass_verify.stdout_lines
+    
+    - name: Check current LDAP configuration
+      command: ldapsearch -Y EXTERNAL -H ldapi:/// -b cn=config
+      register: ldap_config
+      changed_when: false
+
+    - name: Display LDAP configuration
+      debug:
+        var: ldap_config.stdout_lines
+
+    - name: Create LDIF file for sAMAccountName index
+      copy:
+        content: |
+          dn: olcDatabase={1}mdb,cn=config
+          changetype: modify
+          add: olcDbIndex
+          olcDbIndex: sAMAccountName eq
+        dest: /tmp/add_samaccountname_index.ldif
+      become: yes
+
+    - name: Ensure sAMAccountName is indexed
+      command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/add_samaccountname_index.ldif
+      become: yes
+      register: index_result
+      failed_when:
+        - index_result.rc != 0
+        - "'Type or value exists' not in index_result.stderr"
+
+    - name: Check if memberof module is loaded
+      command: ldapsearch -Y EXTERNAL -H ldapi:/// -b cn=config '(olcModuleLoad=memberof)'
+      register: memberof_module_check
+      changed_when: false
+      failed_when: false
+
+    - name: Configure memberOf module loading
+      copy:
+        content: |
+          dn: cn=module{0},cn=config
+          changetype: modify
+          add: olcModuleLoad
+          olcModuleLoad: memberof
+        dest: /tmp/memberof_module.ldif
+      when: memberof_module_check.rc != 0
+
+    - name: Load memberOf module
+      command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/memberof_module.ldif
+      when: memberof_module_check.rc != 0
+
+    - name: Check if refint module is loaded
+      command: ldapsearch -Y EXTERNAL -H ldapi:/// -b cn=config '(olcModuleLoad=refint)'
+      register: refint_module_check
+      changed_when: false
+      failed_when: false
+
+    - name: Configure refint module loading
+      copy:
+        content: |
+          dn: cn=module{0},cn=config
+          changetype: modify
+          add: olcModuleLoad
+          olcModuleLoad: refint
+        dest: /tmp/refint_module.ldif
+      when: refint_module_check.rc != 0
+
+    - name: Load refint module
+      command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/refint_module.ldif
+      when: refint_module_check.rc != 0
+
+    - name: Check if memberOf overlay is already configured
+      command: ldapsearch -Y EXTERNAL -H ldapi:/// -b cn=config '(olcOverlay=memberof)'
+      register: memberof_overlay_check
+      changed_when: false
+      failed_when: false
+
+    - name: Configure memberOf overlay
+      copy:
+        content: |
+          dn: olcOverlay=memberof,olcDatabase={1}mdb,cn=config
+          changetype: add
+          objectClass: olcOverlayConfig
+          objectClass: olcMemberOf
+          olcOverlay: memberof
+          olcMemberOfDangling: ignore
+          olcMemberOfRefInt: TRUE
+          olcMemberOfGroupOC: group
+          olcMemberOfMemberAD: member
+          olcMemberOfMemberOfAD: memberOf
+        dest: /tmp/memberof_overlay.ldif
+      when: memberof_overlay_check.rc != 0
+
+    - name: Apply memberOf overlay configuration
+      command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/memberof_overlay.ldif
+      when: memberof_overlay_check.rc != 0
+      register: memberof_overlay_result
+      failed_when:
+        - memberof_overlay_result.rc != 0
+        - "'Already exists' not in memberof_overlay_result.stderr"
+
+    - name: Check if refint overlay is already configured
+      command: ldapsearch -Y EXTERNAL -H ldapi:/// -b cn=config '(olcOverlay=refint)'
+      register: refint_overlay_check
+      changed_when: false
+      failed_when: false
+
+    - name: Configure refint overlay
+      copy:
+        content: |
+          dn: olcOverlay=refint,olcDatabase={1}mdb,cn=config
+          changetype: add
+          objectClass: olcOverlayConfig
+          objectClass: olcRefintConfig
+          olcOverlay: refint
+          olcRefintAttribute: member memberof manager owner
+        dest: /tmp/refint_overlay.ldif
+      when: refint_overlay_check.rc != 0
+
+    - name: Apply refint overlay configuration
+      command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/refint_overlay.ldif
+      when: refint_overlay_check.rc != 0
+      register: refint_overlay_result
+      failed_when:
+        - refint_overlay_result.rc != 0
+        - "'Already exists' not in refint_overlay_result.stderr"
+    
+    - name: Set fact for memberOf module changes
+      set_fact:
+       memberof_changed: "{{ refint_overlay_result is changed }}"
+
+    - name: Restart slapd service because of new modules were loaded
+      systemd:
+        name: slapd
+        state: restarted
+      when: memberof_changed
+
+    - name: Wait for LDAP to be ready after restart
+      wait_for:
+        port: 389
+        delay: 10
+      when: memberof_changed
+
+    - name: Create base structure LDIF
+      copy:
+        content: |
+          dn: {{ ldap_users }},{{ ldap_base }}
+          objectClass: organizationalUnit
+          ou: {{ ldap_users | replace('ou=', '') }}
+
+          dn: {{ ldap_groups }},{{ ldap_base }}
+          objectClass: organizationalUnit
+          ou: {{ ldap_groups | replace('ou=', '') }}
+        dest: /tmp/base_structure.ldif
+
+    - name: Add base structure
+      command: ldapadd -x -D cn=admin,{{ ldap_base }} -w {{ password }} -f /tmp/base_structure.ldif
+
+    - name: Create users LDIF (create file if it does not exists)
+      tags: create_users_ldif
+      copy:
+        dest: /tmp/users.ldif
+        content: |
+          {% set group_gids = {} %}
+          {% for group in special_groups %}
+          {% set _ = group_gids.update({group.cn: gid_start + loop.index0}) %}
+          {% endfor %}
+          {% for user in users %}
+          dn: cn={{ user.cn }},{{ ldap_users }},{{ ldap_base }}
+          objectClass: top
+          objectClass: person
+          objectClass: organizationalPerson
+          objectClass: user
+          cn: {{ user.cn }}
+          sn: {{ user.sn }}
+          userPrincipalName: {{ user.uid }}@{{ domain }}
+          sAMAccountName: {{ user.uid }}
+          distinguishedName: CN={{ user.cn }},{{ ldap_users }},{{ ldap_base }}
+          {% if user.uid == "admin" %}
+          uidNumber: 1000
+          gidNumber: {{ gid_start  }}
+          {% else %}
+          uidNumber: {{ uid_start + loop.index0 - 1 }}
+          {% set user_gid = 60000 %}
+          {% for group in special_groups %}
+          {% if user.uid in group.members %}
+          {% set user_gid = group_gids[group.cn] %}
+          gidNumber: {{ user_gid }}
+          {% endif %}
+          {% endfor %}
+          homeDirectory: /home/{{ user.uid }}
+          {% endif %}
+          userPassword: {{ lookup('pipe', 'slappasswd -h {SSHA} -s ' + password) }}
+          {% for group in special_groups %}
+          {% if user.uid in group.members %}
+          memberOf: cn={{ group.cn }},{{ ldap_groups }},{{ ldap_base }}
+          {% endif %}
+          {% endfor %}
+    
+          {% endfor %}
+        mode: '0644'
+    
+    - name: Add users
+      tags: add_users
+      command: ldapadd -x -D cn=admin,{{ ldap_base }} -w {{ password }} -f /tmp/users.ldif
+
+    - name: Create groups LDIF
+      tags: create_groups_ldif
+      copy:
+        dest: /tmp/groups.ldif
+        content: |
+          {% for group in special_groups %}
+          dn: cn={{ group.cn }},{{ ldap_groups }},{{ ldap_base }}
+          objectClass: top
+          objectClass: group
+          cn: {{ group.cn }}
+          sAMAccountName: {{ group.cn }}
+          groupType: -2147483646
+          gidNumber: {{ gid_start + loop.index0  }}
+          {% for member in group.members %}
+          member: cn={{ member }},{{ ldap_users }},{{ ldap_base }}
+          {% endfor %}
+     
+          {% endfor %}
+        mode: '0644'
+
+    - name: Add groups
+      tags: add_groups
+      command: ldapadd -x -D cn=admin,{{ ldap_base }} -w {{ password }} -f /tmp/groups.ldif
+
+    - name: Remove temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/memberof_module.ldif
+        - /tmp/refint_module.ldif
+        - /tmp/memberof_overlay.ldif
+        - /tmp/refint_overlay.ldif
+        - /tmp/base_structure.ldif
+        - /tmp/groups.ldif
+        - /tmp/add_samaccountname_index.ldif
+
+    - name: Verify final LDAP content
+      command: ldapsearch -x -D cn=admin,{{ ldap_base }} -w {{ password }} -b {{ ldap_base }}
+      register: final_ldap_content
+
+    - name: Display final LDAP content
+      debug:
+        var: final_ldap_content.stdout_lines
+
+    - name: Verify memberOf attribute
+      command: ldapsearch -x -D cn=admin,{{ ldap_base }} -w {{ password }} -b {{ ldap_users }},{{ ldap_base }} '(cn={{ item.cn }})' memberOf
+      loop: "{{ users }}"
+      register: memberof_verify
+      loop_control:
+        label: "{{ item.cn }}"
+
+    - name: Display memberOf verification result
+      debug:
+        msg: "User {{ item.item.cn }} memberOf: {{ item.stdout_lines }}"
+      loop: "{{ memberof_verify.results }}"
+
+    - name: Verify group membership
+      command: ldapsearch -x -D cn=admin,{{ ldap_base }} -w {{ password }} -b {{ ldap_groups }},{{ ldap_base }} '(cn={{ item.cn }})' member
+      loop: "{{ special_groups }}"
+      register: group_verify
+      loop_control:
+        label: "{{ item.cn }}"
+
+    - name: Display group verification result
+      debug:
+        msg: "Group {{ item.item.cn }} members: {{ item.stdout_lines }}"
+      loop: "{{ group_verify.results }}"
